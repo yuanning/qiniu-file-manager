@@ -16,7 +16,7 @@
       "dest": "app.js"
     },
     {
-      "src": "^/((?!api/).*)\.(css|js|jpg|jpeg|png|gif|svg|ico)",
+      "src": "^/((?!api/).+)\\.(css|js|jpg|jpeg|png|gif|svg|ico)$",
       "dest": "public/$1.$2"
     },
     {
