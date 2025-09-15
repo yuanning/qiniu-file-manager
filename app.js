@@ -32,10 +32,11 @@ config.zone = qiniu.zone.Zone_z0; // 华东区域，根据您的存储区域调�
 function ensureValidQiniuUrl(url) {
   // 检查URL是否已经包含http或https协议
   if (!url.startsWith('http://') && !url.startsWith('https://')) {
-    // 添加http协议（避免https证书问题）
+    // 这里使用http协议，因为七牛云不支持HTTPS
     return 'http://' + url;
   }
-  return url;
+  // 确保URL末尾没有斜杠
+  return url.replace(/\/$/, '');
 }
 
 // 生成公开访问URL的辅助函数
@@ -142,27 +143,119 @@ function isAudioFile(filename) {
 // 生成临时访问URL的API（用于私有空间）
 app.get('/api/temp-url/:key', (req, res) => {
   try {
-    const key = req.params.key;
+    // 解码key，因为URL中可能包含特殊字符
+    const key = decodeURIComponent(req.params.key);
+    console.log('生成临时URL请求，文件key:', key);
+    
     const bucketManager = new qiniu.rs.BucketManager(mac, config);
     
     // 生成临时URL，有效期1小时
     const deadline = Math.floor(Date.now() / 1000) + 3600;
     // 确保域名格式正确
     const validDomain = ensureValidQiniuUrl(domain);
+    console.log('使用域名生成临时URL:', validDomain);
+    
     // 使用修正后的域名生成临时URL
+    // 注意：privateDownloadUrl方法不需要encodeURIComponent，SDK会自动处理
     const privateUrl = bucketManager.privateDownloadUrl(validDomain, key, deadline);
+    
+    console.log('生成的临时URL:', privateUrl);
     
     res.json({
       success: true,
       data: {
-        url: privateUrl
+        url: privateUrl,
+        key: key,
+        domain: validDomain
+      },
+      debug: {
+        accessKeyPresent: !!accessKey,
+        secretKeyPresent: !!secretKey,
+        bucketPresent: !!bucket,
+        domainPresent: !!domain,
+        zoneConfig: config.zone.zone
       }
     });
   } catch (error) {
     console.error('生成临时URL失败:', error);
     res.status(500).json({
       success: false,
-      message: error.message || '生成临时URL失败'
+      message: error.message || '生成临时URL失败',
+      debug: {
+        errorStack: error.stack,
+        accessKeyPresent: !!accessKey,
+        secretKeyPresent: !!secretKey,
+        bucketPresent: !!bucket,
+        domainPresent: !!domain
+      }
+    });
+  }
+});
+
+// 添加代理API，用于处理HTTPS到HTTP的转换
+app.get('/api/proxy/:key', (req, res) => {
+  try {
+    const key = decodeURIComponent(req.params.key);
+    console.log('代理请求文件key:', key);
+    
+    // 生成七牛云的HTTP URL
+    const qiniuUrl = generatePublicUrl(domain, key);
+    console.log('代理到七牛云URL:', qiniuUrl);
+    
+    // 使用http模块请求七牛云资源
+    const http = require('http');
+    const https = require('https');
+    
+    // 根据URL协议选择正确的模块
+    const protocol = qiniuUrl.startsWith('https') ? https : http;
+    
+    // 发起请求
+    const request = protocol.get(qiniuUrl, (response) => {
+      // 设置响应头
+      res.statusCode = response.statusCode;
+      
+      // 复制所有响应头
+      for (const [key, value] of Object.entries(response.headers)) {
+        res.setHeader(key, value);
+      }
+      
+      // 禁止浏览器缓存（可选）
+      res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
+      res.setHeader('Pragma', 'no-cache');
+      res.setHeader('Expires', '0');
+      
+      // 将响应流传输给客户端
+      response.pipe(res);
+    });
+    
+    // 处理请求错误
+    request.on('error', (error) => {
+      console.error('代理请求失败:', error);
+      res.status(500).json({
+        success: false,
+        message: '代理请求失败: ' + error.message
+      });
+    });
+    
+    // 处理超时
+    request.setTimeout(30000, () => {
+      request.abort();
+      res.status(504).json({
+        success: false,
+        message: '代理请求超时'
+      });
+    });
+    
+    // 确保客户端断开连接时终止请求
+    req.on('close', () => {
+      request.abort();
+    });
+    
+  } catch (error) {
+    console.error('代理API错误:', error);
+    res.status(500).json({
+      success: false,
+      message: '代理API内部错误: ' + error.message
     });
   }
 });

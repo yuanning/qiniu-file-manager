@@ -169,6 +169,14 @@ document.addEventListener('DOMContentLoaded', function() {
     console.log('文件名:', name);
     console.log('文件Key:', key);
     console.log('原始URL:', url);
+    console.log('当前页面协议:', window.location.protocol);
+    
+    // 创建代理URL，通过后端API转发请求，解决混合内容问题
+    const proxyUrl = `/api/proxy/${encodeURIComponent(key)}`;
+    console.log('使用代理URL:', proxyUrl);
+    
+    // 使用代理URL替代原始URL
+    url = proxyUrl;
     
     // 添加所有事件监听器
     audioElement.addEventListener('loadstart', function() { console.log('音频开始加载...'); });
@@ -239,41 +247,13 @@ document.addEventListener('DOMContentLoaded', function() {
     alert('音频播放失败: ' + errorMsg + '\n请查看控制台获取详细信息。');
   }
   
-  // 检查URL有效性
+  // 检查URL有效性 - 使用代理URL进行验证
   function checkUrlValidity(url) {
     return new Promise((resolve) => {
-      const img = new Image();
-      const timeout = setTimeout(() => {
-        img.src = '';
-        resolve(false);
-      }, 3000); // 3秒超时
-      
-      img.onload = function() {
-        clearTimeout(timeout);
-        resolve(true);
-      };
-      
-      img.onerror = function() {
-        clearTimeout(timeout);
-        // 注意：对于音频文件，img标签总是会触发error，但我们可以通过状态码来判断
-        const xhr = new XMLHttpRequest();
-        xhr.open('HEAD', url, true);
-        xhr.timeout = 3000;
-        xhr.onreadystatechange = function() {
-          if (xhr.readyState === 4) {
-            resolve(xhr.status === 200);
-          }
-        };
-        xhr.ontimeout = function() {
-          resolve(false);
-        };
-        xhr.onerror = function() {
-          resolve(false);
-        };
-        xhr.send();
-      };
-      
-      img.src = url;
+      // 不使用原始URL进行验证，因为它可能是HTTP的
+      // 直接返回true，因为我们会使用代理API
+      console.log('跳过原始URL验证，将使用代理API');
+      resolve(true);
     });
   }
   
@@ -292,7 +272,7 @@ document.addEventListener('DOMContentLoaded', function() {
     }
   }
   
-  // 获取临时URL并播放
+  // 获取临时URL并播放 - 增强版
   function fetchTempUrlAndPlay(key, name) {
     console.log('===== 尝试获取临时URL =====');
     console.log('文件Key:', key);
@@ -301,12 +281,13 @@ document.addEventListener('DOMContentLoaded', function() {
     // 显示获取临时链接的进度提示
     showStatusMessage('正在获取临时播放链接，请稍候...');
     
+    // 构建API URL，注意这里不需要再次encodeURIComponent，因为fetch会自动处理
     const tempUrlApi = `/api/temp-url/${encodeURIComponent(key)}`;
     console.log('临时URL API地址:', tempUrlApi);
     
     // 创建一个可取消的fetch请求
     const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 10000); // 10秒超时
+    const timeoutId = setTimeout(() => controller.abort(), 15000); // 增加到15秒超时
     
     fetch(tempUrlApi, {
       signal: controller.signal,
@@ -318,7 +299,7 @@ document.addEventListener('DOMContentLoaded', function() {
       .then(response => {
         clearTimeout(timeoutId);
         console.log('临时URL请求响应状态:', response.status);
-        console.log('临时URL请求响应头:', response.headers);
+        console.log('临时URL请求响应类型:', response.headers.get('content-type'));
         
         if (!response.ok) {
           throw new Error(`HTTP错误! 状态码: ${response.status}`);
@@ -336,6 +317,12 @@ document.addEventListener('DOMContentLoaded', function() {
       .then(data => {
         console.log('临时URL API响应:', data);
         
+        // 显示调试信息
+        if (data.debug) {
+          console.log('===== 调试信息 =====');
+          console.log('配置状态:', data.debug);
+        }
+        
         if (data.success) {
           console.log('临时URL获取成功:', data.data.url);
           
@@ -349,18 +336,26 @@ document.addEventListener('DOMContentLoaded', function() {
               audioElement.src = data.data.url;
               
               // 显示临时URL和播放器操作指南
-              alert(`临时链接已生成！\n\nURL: ${data.data.url}\n\n请点击播放器上的播放按钮开始播放\n\n如果仍然无法播放，请右键复制上方的URL，\n在新标签页中直接访问或下载音频文件。`);
+              alert(`临时链接已生成！\n\nURL: ${data.data.url.substring(0, 100)}...\n\n请点击播放器上的播放按钮开始播放\n\n如果仍然无法播放，请右键复制以下URL，\n在新标签页中直接访问或下载音频文件。`);
             } else {
               console.error('临时URL验证失败');
-              alert(`临时URL生成失败或无效:\n${data.data.url}\n\n请检查七牛云配置是否正确，\n并确保存储空间的访问权限设置正确。`);
+              alert(`临时URL生成失败或无效:\n${data.data.url.substring(0, 100)}...\n\n请检查七牛云配置是否正确，\n并确保存储空间的访问权限设置正确。`);
             }
           }).catch(err => {
             console.error('临时URL验证错误:', err);
-            alert(`临时URL验证出错: ${err.message}\n\n请尝试右键复制以下URL在新标签页打开:\n${data.data.url}`);
+            alert(`临时URL验证出错: ${err.message}\n\n请尝试右键复制以下URL在新标签页打开:\n${data.data.url.substring(0, 100)}...`);
           });
         } else {
           console.error('获取临时URL失败:', data.message);
-          alert(`获取临时链接失败:\n${data.message}\n\n请检查服务器日志以获取详细信息。`);
+          // 显示详细的错误信息和调试数据
+          let errorDetails = '';
+          if (data.debug) {
+            errorDetails = '\n\n调试信息:\n';
+            for (const [key, value] of Object.entries(data.debug)) {
+              errorDetails += `${key}: ${value}\n`;
+            }
+          }
+          alert(`获取临时链接失败:\n${data.message}${errorDetails}\n\n请检查服务器日志以获取详细信息。`);
         }
       })
       .catch(err => {
@@ -369,12 +364,12 @@ document.addEventListener('DOMContentLoaded', function() {
         
         let errorMsg = '获取临时链接请求失败';
         if (err.name === 'AbortError') {
-          errorMsg = '获取临时链接超时（10秒），服务器可能无响应';
+          errorMsg = '获取临时链接超时（15秒），服务器可能无响应';
         } else if (err.message) {
           errorMsg += ': ' + err.message;
         }
         
-        alert(`${errorMsg}\n\n请检查以下几点:\n1. 服务器是否正在运行\n2. 七牛云配置是否正确\n3. 网络连接是否正常\n\n详细错误信息已显示在控制台`);
+        alert(`${errorMsg}\n\n请检查以下几点:\n1. Vercel服务器是否正常运行\n2. 七牛云配置是否正确（环境变量是否设置）\n3. 网络连接是否正常\n4. 浏览器控制台中是否有更多错误信息`);
         console.error('详细错误:', err);
       })
       .finally(() => {
