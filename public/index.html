@@ -1,0 +1,58 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>七牛云文件管理器</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <div class="container">
+    <header>
+      <h1>七牛云文件管理器</h1>
+      <p class="subtitle">浏览文件并播放音频</p>
+    </header>
+    
+    <main>
+      <!-- 路径导航 -->
+      <div class="breadcrumb" id="breadcrumb">
+        <span class="breadcrumb-item" data-path="">首页</span>
+      </div>
+      
+      <!-- 文件和文件夹列表 -->
+      <div class="file-list">
+        <div class="list-header">
+          <div class="header-item name">名称</div>
+          <div class="header-item size">大小</div>
+          <div class="header-item type">类型</div>
+          <div class="header-item action">操作</div>
+        </div>
+        <div class="list-content" id="fileContent">
+          <!-- 加载中状态 -->
+          <div class="loading">
+            <div class="loading-spinner"></div>
+            <p>正在加载文件...</p>
+          </div>
+        </div>
+      </div>
+      
+      <!-- 音频播放器 -->
+      <div class="audio-player" id="audioPlayer">
+        <div class="player-header">
+          <h3 id="currentAudioName">未选择音频</h3>
+          <button class="close-player" id="closePlayer">×</button>
+        </div>
+        <div class="player-controls">
+          <audio id="audioElement" controls></audio>
+        </div>
+      </div>
+    </main>
+    
+    <footer>
+      <p>&copy; 2023 七牛云文件管理器</p>
+    </footer>
+  </div>
+  
+  <script src="app.js"></script>
+</body>
+</html>
