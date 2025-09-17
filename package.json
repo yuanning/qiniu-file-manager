@@ -5,7 +5,9 @@
   "main": "app.js",
   "scripts": {
     "start": "node app.js",
-    "dev": "nodemon app.js"
+    "dev": "nodemon app.js",
+    "build": "node build.js",
+    "build:unix": "mkdir -p dist && cp -r public/* dist/ && cp app.js package.json .env dist/"
   },
   "dependencies": {
     "express": "^4.18.2",

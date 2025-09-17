@@ -1,0 +1,29 @@
+server {
+    listen 80;
+    server_name your-domain.com; # 替换为您的域名
+    
+    root /path/to/dist; # 替换为dist目录的绝对路径
+    index index.html;
+    
+    location / {
+      try_files $uri $uri/ /index.html;
+    }
+    
+    location /api {
+      proxy_pass http://localhost:3000; # 代理到Node.js服务
+      proxy_http_version 1.1;
+      proxy_set_header Upgrade $http_upgrade;
+      proxy_set_header Connection 'upgrade';
+      proxy_set_header Host $host;
+      proxy_cache_bypass $http_upgrade;
+    }
+    
+    # 静态资源缓存
+    location ~* .(css|js|jpg|jpeg|png|gif|svg|ico)$ {
+      expires 30d;
+      add_header Cache-Control "public, max-age=2592000";
+    }
+    
+    # 错误页面
+    error_page 404 /index.html;
+  }
