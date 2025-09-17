@@ -6,6 +6,8 @@
   "scripts": {
     "start": "node app.js",
     "dev": "nodemon app.js",
+    "start:local": "node app_local_filesystem.js",
+    "dev:local": "nodemon app_local_filesystem.js",
     "build": "node build.js",
     "build:unix": "mkdir -p dist && cp -r public/* dist/ && cp app.js package.json .env dist/"
   },
